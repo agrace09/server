@@ -1,61 +1,40 @@
-
-/**
- * Module dependencies.
- */
-const { Server } = require("socket.io");
-
-/**
- * Load environment variables from .env file.
- */
-const clientURLLocalhost = "http://localhost:3000";
-const clientUrlDeploy = "https://server-suut.onrender.com";
-
-const port = 8080;
-
-/**
- * Create a WebSocket server using Socket.IO.
- * Configured with CORS policy to allow connections from specified origins.
- */
-const io = new Server({
+const io = require("socket.io")(8080, {
   cors: {
-    origin: [clientURLLocalhost, clientUrlDeploy],
-  },
+    origin: "http://localhost:3000", // Permitir solicitudes desde este origen
+    methods: ["GET", "POST"]
+  }
 });
 
-/**
- * Start listening on the specified port.
- */
-io.listen(port);
+let players = {};
 
-/**
- * Listen for incoming connections.
- */
 io.on("connection", (socket) => {
-  /**
-   * Log the ID of the player connected.
-   */
-  console.log(
-    "Player joined with ID",
-    socket.id,
-    ". There are " + io.engine.clientsCount + " players connected."
-  );
+  console.log("New user connected:", socket.id);
 
-  /**
-   * Handle a player's movement.
-   * Broadcast the transforms to other player.
-   */
-  socket.on("player-moving", (transforms) => {
-    socket.broadcast.emit("player-moving", transforms);
+  // Añadir nuevo jugador
+  players[socket.id] = {
+    position: [0, 0, 0],
+    rotation: [0, 0, 0, 1],
+  };
+
+  // Enviar jugadores actuales al nuevo jugador
+  socket.emit('currentPlayers', players);
+
+  // Anunciar nuevo jugador a otros jugadores
+  socket.broadcast.emit('newPlayer', { playerId: socket.id, playerData: players[socket.id] });
+
+  // Manejar movimiento de jugador
+  socket.on("playerMoved", (data) => {
+    if (players[socket.id]) {
+      players[socket.id].position = data.position;
+      players[socket.id].rotation = data.rotation;
+      socket.broadcast.emit("playerMoved", { playerId: socket.id, position: data.position, rotation: data.rotation });
+    }
   });
 
-  /**
-   * Handle player disconnection.
-   */
+  // Manejar desconexión de jugador
   socket.on("disconnect", () => {
-    console.log(
-      "Player disconnected with ID",
-      socket.id,
-      ". There are " + io.engine.clientsCount + " players connected"
-    );
+    console.log("User disconnected:", socket.id);
+    delete players[socket.id];
+    io.emit('playerDisconnected', socket.id);
   });
 });
