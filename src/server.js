@@ -1,47 +1,61 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors')
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
 
+/**
+ * Module dependencies.
+ */
+const { Server } = require("socket.io");
 
-app.use(cors())
-let players = {};
+/**
+ * Load environment variables from .env file.
+ */
+const clientURLLocalhost = "http://localhost:3000";
+const clientUrlDeploy = "https://sphere-websockets-r3f-client.vercel.app";
 
-io.on('connection', (socket) => {
-  console.log('a user connected:', socket.id);
+const port = 8080;
 
-  // Agregar nuevo jugador al objeto de jugadores
-  players[socket.id] = {
-    position: [0, 0, 0],
-    rotation: [0, 0, 0, 1],
-  };
-
-  // Enviar jugadores actuales al nuevo jugador
-  socket.emit('currentPlayers', players);
-
-  // Anunciar nuevo jugador a otros jugadores
-  socket.broadcast.emit('newPlayer', { playerId: socket.id, playerData: players[socket.id] });
-
-  // Manejar desconexión de jugador
-  socket.on('disconnect', () => {
-    console.log('user disconnected:', socket.id);
-    delete players[socket.id];
-    io.emit('playerDisconnected', socket.id);
-  });
-
-  // Manejar movimiento de jugador
-  socket.on('playerMoved', (data) => {
-    if (players[socket.id]) {
-      players[socket.id].position = data.position;
-      players[socket.id].rotation = data.rotation;
-      socket.broadcast.emit('playerMoved', { playerId: socket.id, position: data.position, rotation: data.rotation });
-    }
-  });
+/**
+ * Create a WebSocket server using Socket.IO.
+ * Configured with CORS policy to allow connections from specified origins.
+ */
+const io = new Server({
+  cors: {
+    origin: [clientURLLocalhost, clientUrlDeploy],
+  },
 });
 
-server.listen(8080, () => {
-  console.log('listening on *:8080');
+/**
+ * Start listening on the specified port.
+ */
+io.listen(port);
+
+/**
+ * Listen for incoming connections.
+ */
+io.on("connection", (socket) => {
+  /**
+   * Log the ID of the player connected.
+   */
+  console.log(
+    "Player joined with ID",
+    socket.id,
+    ". There are " + io.engine.clientsCount + " players connected."
+  );
+
+  /**
+   * Handle a player's movement.
+   * Broadcast the transforms to other player.
+   */
+  socket.on("player-moving", (transforms) => {
+    socket.broadcast.emit("player-moving", transforms);
+  });
+
+  /**
+   * Handle player disconnection.
+   */
+  socket.on("disconnect", () => {
+    console.log(
+      "Player disconnected with ID",
+      socket.id,
+      ". There are " + io.engine.clientsCount + " players connected"
+    );
+  });
 });
