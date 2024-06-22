@@ -1,11 +1,25 @@
 "use strict";
 
+let players = [];
+const MAX_PLAYERS = 2;
+
 function handleSocketConnection(socket, io, states) {
   console.log(
     "Player joined with ID",
     socket.id,
     ". There are " + io.engine.clientsCount + " players connected."
   );
+
+   // Agregar el nuevo jugador a la lista
+   players.push(socket.id);
+
+   // Enviar el estado actual al nuevo jugador
+   socket.emit("update-states", states);
+ 
+   // Notificar a todos los jugadores si hay dos jugadores conectados
+   if (players.length === MAX_PLAYERS) {
+     io.emit("players-ready");
+   }
 
   // Enviar el estado actual al nuevo jugador
   socket.emit("update-states", states);
@@ -39,6 +53,12 @@ function handleSocketConnection(socket, io, states) {
     io.emit("update-states", states);
   });
 
+  // Manejar cambios en el estado de los enemigos de land level
+  socket.on("update-enemy-states", (newEnemyStates) => {
+    Object.assign(states.landLevelState.enemyStates, newEnemyStates);
+    io.emit("update-states", states);
+  });
+
 
   socket.on("disconnect", () => {
     console.log(
@@ -46,6 +66,9 @@ function handleSocketConnection(socket, io, states) {
       socket.id,
       ". There are " + io.engine.clientsCount + " players connected"
     );
+
+    // Remover el jugador de la lista
+    players = players.filter(player => player !== socket.id);
   });
 }
 
