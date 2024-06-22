@@ -1,40 +1,23 @@
-const io = require("socket.io")(8080, {
+"use strict";
+const { Server } = require("socket.io");
+const { handleSocketConnection } = require("./socketManager");
+const { initializeStates } = require("./stateManager");
+
+const clientURLLocalhost = "http://localhost:3000";
+const clientUrlDeploy = "https://sphere-websockets-r3f-client.vercel.app";
+
+const port = 8080;
+
+const io = new Server({
   cors: {
-    origin: "http://localhost:3000", // Permitir solicitudes desde este origen
-    methods: ["GET", "POST"]
-  }
+    origin: [clientURLLocalhost, clientUrlDeploy],
+  },
 });
 
-let players = {};
+const initialStates = initializeStates();
+
+io.listen(port);
 
 io.on("connection", (socket) => {
-  console.log("New user connected:", socket.id);
-
-  // Añadir nuevo jugador
-  players[socket.id] = {
-    position: [0, 0, 0],
-    rotation: [0, 0, 0, 1],
-  };
-
-  // Enviar jugadores actuales al nuevo jugador
-  socket.emit('currentPlayers', players);
-
-  // Anunciar nuevo jugador a otros jugadores
-  socket.broadcast.emit('newPlayer', { playerId: socket.id, playerData: players[socket.id] });
-
-  // Manejar movimiento de jugador
-  socket.on("playerMoved", (data) => {
-    if (players[socket.id]) {
-      players[socket.id].position = data.position;
-      players[socket.id].rotation = data.rotation;
-      socket.broadcast.emit("playerMoved", { playerId: socket.id, position: data.position, rotation: data.rotation });
-    }
-  });
-
-  // Manejar desconexión de jugador
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    delete players[socket.id];
-    io.emit('playerDisconnected', socket.id);
-  });
+  handleSocketConnection(socket, io, initialStates);
 });
